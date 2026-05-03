@@ -23,13 +23,7 @@ def _pyproject(
     packages: list[str] | None = None,
     scripts: list[str] | None = None,
 ) -> dict:
-    """Build a pyproject-like dict containing the actions table and declared targets.
-
-    `mapping` is the contents of `tool.poetry-run-actions.<env>` (e.g.
-    `{"packages": {"api": "echo"}}`). `packages` defaults to `["api",
-    "worker"]` and `scripts` defaults to `["migrate"]` so the gate passes
-    for the names used across these tests.
-    """
+    """Build a pyproject-like dict containing the actions table and declared targets."""
 
     if packages is None:
         packages = ["api", "worker"]

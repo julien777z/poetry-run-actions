@@ -84,15 +84,7 @@ class RunActionsPlugin(ApplicationPlugin):
     def _resolve_target_entry(
         cls, pyproject_data: dict, environment: str, name: str
     ) -> tuple[list[str], list[str]]:
-        """Return (setup, pre-start) lists for the configured package or script entry.
-
-        Looks up `tool.poetry-run-actions.<env>.packages.<name>` and
-        `tool.poetry-run-actions.<env>.scripts.<name>`. The name must also
-        appear in `[tool.poetry] packages` (for the packages branch) or in
-        `[project.scripts]` / `[tool.poetry.scripts]` (for the scripts
-        branch). If both branches are configured for the same name, warns
-        and returns empty lists.
-        """
+        """Return (setup, pre-start) lists for the configured package or script entry."""
 
         env_table = pyproject_data.get("tool", {}).get(CONFIG_TABLE, {}).get(environment, {})
 
