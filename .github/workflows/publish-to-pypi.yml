@@ -47,6 +47,9 @@ jobs:
       - name: Build package
         run: poetry build
 
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
       - name: Commit version bump and tag
         shell: bash
         run: |
@@ -61,9 +64,6 @@ jobs:
         run: |
           git push origin HEAD
           git push origin --tags
-
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
