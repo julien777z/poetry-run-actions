@@ -17,9 +17,6 @@ Repository = "https://github.com/julien777z/poetry-run-actions"
 [project.entry-points."poetry.application.plugin"]
 poetry-run-actions = "poetry_run_actions.plugin:RunActionsPlugin"
 
-[project.scripts]
-tests = "pytest:console_main"
-
 [project.optional-dependencies]
 dev = [
     "pytest>=8.3.5",

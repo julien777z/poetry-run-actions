@@ -70,7 +70,7 @@ On every matching `poetry run <name>` invocation, the plugin runs:
 Setup commands should be idempotent and run before the pre-start commands. This can be used to install dependencies.
 Pre-start commands are for application dependencies, such as Redis.
 
-## Environment selection
+## Environment Selection
 
 The active environment is read from `POETRY_ENVIRONMENT`, defaulting to `dev`.
 
@@ -82,3 +82,17 @@ Example:
 | `dev`                | Same as default                                                                      |
 | `production`         | Looks up `tool.poetry-run-actions.production.{packages,scripts}.<name>`              |
 | any other value      | Looks up `tool.poetry-run-actions.<value>.{packages,scripts}.<name>`                 |
+
+## Run Tests
+
+Install development dependencies:
+
+```bash
+poetry install -E dev
+```
+
+Run tests:
+
+```bash
+poetry run pytest .
+```
