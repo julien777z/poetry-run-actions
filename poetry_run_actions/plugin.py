@@ -9,6 +9,13 @@ from cleo.events.event_dispatcher import EventDispatcher
 from poetry.console.application import Application
 from poetry.plugins.application_plugin import ApplicationPlugin
 
+from poetry_run_actions.utils import (
+    coerce_commands,
+    extract_target_name,
+    get_configured_packages,
+    get_configured_scripts,
+)
+
 logger = logging.getLogger(__name__)
 
 ENV_VAR: Final[str] = "POETRY_ENVIRONMENT"
@@ -46,7 +53,11 @@ class RunActionsPlugin(ApplicationPlugin):
         if not raw_args:
             return
 
-        name = raw_args[0]
+        name = extract_target_name(raw_args)
+
+        if name is None:
+            return
+
         environment = os.environ.get(ENV_VAR, DEFAULT_ENV)
 
         setup_actions, pre_start_actions = self._resolve_target_entry(
@@ -94,8 +105,8 @@ class RunActionsPlugin(ApplicationPlugin):
         packages_table = env_table.get(PACKAGES_KEY, {})
         scripts_table = env_table.get(SCRIPTS_KEY, {})
 
-        configured_packages = cls._get_configured_packages(pyproject_data)
-        configured_scripts = cls._get_configured_scripts(pyproject_data)
+        configured_packages = get_configured_packages(pyproject_data)
+        configured_scripts = get_configured_scripts(pyproject_data)
 
         pkg_entry = (
             packages_table.get(name)
@@ -141,13 +152,13 @@ class RunActionsPlugin(ApplicationPlugin):
             case None:
                 return [], []
             case str() | list():
-                return [], cls._coerce_commands(value, environment, kind, name, None)
+                return [], coerce_commands(value, environment, kind, name, None, CONFIG_TABLE)
             case dict():
-                setup = cls._coerce_commands(
-                    value.get(SETUP_KEY), environment, kind, name, SETUP_KEY
+                setup = coerce_commands(
+                    value.get(SETUP_KEY), environment, kind, name, SETUP_KEY, CONFIG_TABLE
                 )
-                commands = cls._coerce_commands(
-                    value.get(COMMANDS_KEY), environment, kind, name, COMMANDS_KEY
+                commands = coerce_commands(
+                    value.get(COMMANDS_KEY), environment, kind, name, COMMANDS_KEY, CONFIG_TABLE
                 )
 
                 return setup, commands
@@ -163,60 +174,3 @@ class RunActionsPlugin(ApplicationPlugin):
                 )
 
                 return [], []
-
-    @staticmethod
-    def _coerce_commands(
-        value: object, environment: str, kind: str, name: str, sub_key: str | None
-    ) -> list[str]:
-        """Coerce a str or list[str] config value into a list, warning on other shapes."""
-
-        match value:
-            case None:
-                return []
-            case str():
-                return [value]
-            case list() if all(isinstance(item, str) for item in value):
-                return list(value)
-            case _:
-                location = (
-                    f"{CONFIG_TABLE}.{environment}.{kind}.{name}"
-                    if sub_key is None
-                    else f"{CONFIG_TABLE}.{environment}.{kind}.{name}.{sub_key}"
-                )
-                logger.warning(
-                    "poetry-run-actions: ignoring %s; expected str or list[str], got %r",
-                    location,
-                    value,
-                )
-
-                return []
-
-    @staticmethod
-    def _get_configured_packages(pyproject_data: dict) -> set[str]:
-        """Return the set of package names from `[tool.poetry] packages`."""
-
-        packages = pyproject_data.get("tool", {}).get("poetry", {}).get("packages", [])
-
-        if not isinstance(packages, list):
-            return set()
-
-        return {
-            entry["include"]
-            for entry in packages
-            if isinstance(entry, dict) and isinstance(entry.get("include"), str)
-        }
-
-    @staticmethod
-    def _get_configured_scripts(pyproject_data: dict) -> set[str]:
-        """Return the set of script names from `[project.scripts]` and `[tool.poetry.scripts]`."""
-
-        project_scripts = pyproject_data.get("project", {}).get("scripts", {})
-        tool_scripts = pyproject_data.get("tool", {}).get("poetry", {}).get("scripts", {})
-
-        out: set[str] = set()
-
-        for src in (project_scripts, tool_scripts):
-            if isinstance(src, dict):
-                out.update(k for k in src if isinstance(k, str))
-
-        return out
