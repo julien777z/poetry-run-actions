@@ -9,6 +9,13 @@ from cleo.events.event_dispatcher import EventDispatcher
 from poetry.console.application import Application
 from poetry.plugins.application_plugin import ApplicationPlugin
 
+from poetry_run_actions.utils import (
+    coerce_commands,
+    extract_target_name,
+    get_configured_packages,
+    get_configured_scripts,
+)
+
 logger = logging.getLogger(__name__)
 
 ENV_VAR: Final[str] = "POETRY_ENVIRONMENT"
@@ -46,7 +53,7 @@ class RunActionsPlugin(ApplicationPlugin):
         if not raw_args:
             return
 
-        name = self._extract_target_name(raw_args)
+        name = extract_target_name(raw_args)
 
         if name is None:
             return
@@ -84,40 +91,6 @@ class RunActionsPlugin(ApplicationPlugin):
                     f"code {result.returncode}; continuing.</warning>"
                 )
 
-    @staticmethod
-    def _extract_target_name(raw_args: list[str]) -> str | None:
-        """Return the logical target name, unwrapping `python -m <module>` invocations.
-
-        For `poetry run python -m api.cli`, returns "api" so the lookup matches the
-        declared `[tool.poetry] packages` entry rather than the interpreter.
-        """
-
-        if not raw_args:
-            return None
-
-        first = raw_args[0]
-
-        if RunActionsPlugin._is_python_interpreter(first):
-            for index in range(1, len(raw_args) - 1):
-                if raw_args[index] == "-m":
-                    module = raw_args[index + 1]
-                    top_level = module.split(".", 1)[0]
-
-                    return top_level or raw_args[0]
-
-        return raw_args[0]
-
-    @staticmethod
-    def _is_python_interpreter(token: str) -> bool:
-        """Return True if `token` looks like a python interpreter executable."""
-
-        base = os.path.basename(token)
-
-        if base in {"python", "python3"}:
-            return True
-
-        return base.startswith("python3.") or base.startswith("python2.")
-
     @classmethod
     def _resolve_target_entry(
         cls, pyproject_data: dict, environment: str, name: str
@@ -132,8 +105,8 @@ class RunActionsPlugin(ApplicationPlugin):
         packages_table = env_table.get(PACKAGES_KEY, {})
         scripts_table = env_table.get(SCRIPTS_KEY, {})
 
-        configured_packages = cls._get_configured_packages(pyproject_data)
-        configured_scripts = cls._get_configured_scripts(pyproject_data)
+        configured_packages = get_configured_packages(pyproject_data)
+        configured_scripts = get_configured_scripts(pyproject_data)
 
         pkg_entry = (
             packages_table.get(name)
@@ -179,13 +152,13 @@ class RunActionsPlugin(ApplicationPlugin):
             case None:
                 return [], []
             case str() | list():
-                return [], cls._coerce_commands(value, environment, kind, name, None)
+                return [], coerce_commands(value, environment, kind, name, None, CONFIG_TABLE)
             case dict():
-                setup = cls._coerce_commands(
-                    value.get(SETUP_KEY), environment, kind, name, SETUP_KEY
+                setup = coerce_commands(
+                    value.get(SETUP_KEY), environment, kind, name, SETUP_KEY, CONFIG_TABLE
                 )
-                commands = cls._coerce_commands(
-                    value.get(COMMANDS_KEY), environment, kind, name, COMMANDS_KEY
+                commands = coerce_commands(
+                    value.get(COMMANDS_KEY), environment, kind, name, COMMANDS_KEY, CONFIG_TABLE
                 )
 
                 return setup, commands
@@ -201,60 +174,3 @@ class RunActionsPlugin(ApplicationPlugin):
                 )
 
                 return [], []
-
-    @staticmethod
-    def _coerce_commands(
-        value: object, environment: str, kind: str, name: str, sub_key: str | None
-    ) -> list[str]:
-        """Coerce a str or list[str] config value into a list, warning on other shapes."""
-
-        match value:
-            case None:
-                return []
-            case str():
-                return [value]
-            case list() if all(isinstance(item, str) for item in value):
-                return list(value)
-            case _:
-                location = (
-                    f"{CONFIG_TABLE}.{environment}.{kind}.{name}"
-                    if sub_key is None
-                    else f"{CONFIG_TABLE}.{environment}.{kind}.{name}.{sub_key}"
-                )
-                logger.warning(
-                    "poetry-run-actions: ignoring %s; expected str or list[str], got %r",
-                    location,
-                    value,
-                )
-
-                return []
-
-    @staticmethod
-    def _get_configured_packages(pyproject_data: dict) -> set[str]:
-        """Return the set of package names from `[tool.poetry] packages`."""
-
-        packages = pyproject_data.get("tool", {}).get("poetry", {}).get("packages", [])
-
-        if not isinstance(packages, list):
-            return set()
-
-        return {
-            entry["include"]
-            for entry in packages
-            if isinstance(entry, dict) and isinstance(entry.get("include"), str)
-        }
-
-    @staticmethod
-    def _get_configured_scripts(pyproject_data: dict) -> set[str]:
-        """Return the set of script names from `[project.scripts]` and `[tool.poetry.scripts]`."""
-
-        project_scripts = pyproject_data.get("project", {}).get("scripts", {})
-        tool_scripts = pyproject_data.get("tool", {}).get("poetry", {}).get("scripts", {})
-
-        out: set[str] = set()
-
-        for src in (project_scripts, tool_scripts):
-            if isinstance(src, dict):
-                out.update(k for k in src if isinstance(k, str))
-
-        return out
