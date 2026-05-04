@@ -46,7 +46,11 @@ class RunActionsPlugin(ApplicationPlugin):
         if not raw_args:
             return
 
-        name = raw_args[0]
+        name = self._extract_target_name(raw_args)
+
+        if name is None:
+            return
+
         environment = os.environ.get(ENV_VAR, DEFAULT_ENV)
 
         setup_actions, pre_start_actions = self._resolve_target_entry(
@@ -79,6 +83,40 @@ class RunActionsPlugin(ApplicationPlugin):
                     f"<warning>[poetry-run-actions] action exited with "
                     f"code {result.returncode}; continuing.</warning>"
                 )
+
+    @staticmethod
+    def _extract_target_name(raw_args: list[str]) -> str | None:
+        """Return the logical target name, unwrapping `python -m <module>` invocations.
+
+        For `poetry run python -m api.cli`, returns "api" so the lookup matches the
+        declared `[tool.poetry] packages` entry rather than the interpreter.
+        """
+
+        if not raw_args:
+            return None
+
+        first = raw_args[0]
+
+        if RunActionsPlugin._is_python_interpreter(first):
+            for index in range(1, len(raw_args) - 1):
+                if raw_args[index] == "-m":
+                    module = raw_args[index + 1]
+                    top_level = module.split(".", 1)[0]
+
+                    return top_level or raw_args[0]
+
+        return raw_args[0]
+
+    @staticmethod
+    def _is_python_interpreter(token: str) -> bool:
+        """Return True if `token` looks like a python interpreter executable."""
+
+        base = os.path.basename(token)
+
+        if base in {"python", "python3"}:
+            return True
+
+        return base.startswith("python3.") or base.startswith("python2.")
 
     @classmethod
     def _resolve_target_entry(

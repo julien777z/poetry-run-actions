@@ -34,7 +34,7 @@ packages = [{include = "api"}, {include = "worker"}]
 [project.scripts]
 migrate = "myapp.db:migrate"
 
-# Package target: fires on `poetry run api` because `api` is in [tool.poetry] packages
+# Package target: fires on `poetry run python -m api` because `api` is in [tool.poetry] packages
 [tool.poetry-run-actions.dev.packages.api]
 setup-commands = ["docker compose up -d redis"]
 pre-start-commands = ["echo 'starting api'"]
@@ -65,7 +65,8 @@ pre-start-commands = ["echo 'starting api'"]
 ### `setup-commands` vs. `pre-start-commands`
 
 Both are optional and accept either a single string or a list of strings.
-On every matching `poetry run <name>` invocation, the plugin runs:
+On every matching `poetry run python -m <name>` (for packages) or
+`poetry run <name>` (for scripts) invocation, the plugin runs:
 
 Setup commands should be idempotent and run before the pre-start commands. This can be used to install dependencies.
 Pre-start commands are for application dependencies, such as Redis.
