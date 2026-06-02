@@ -13,23 +13,25 @@ def is_python_interpreter(token: str) -> bool:
     return bool(_PYTHON_INTERPRETER_RE.fullmatch(os.path.basename(token)))
 
 
-def extract_target_name(raw_args: list[str]) -> str | None:
+def extract_target_name(raw_args: list[str]) -> str:
     """Return the logical target name, unwrapping `python -m <module>` to its top-level package."""
-
-    if not raw_args:
-        return None
 
     first = raw_args[0]
 
-    if is_python_interpreter(first):
-        for index in range(1, len(raw_args) - 1):
-            if raw_args[index] == "-m":
-                module = raw_args[index + 1]
-                top_level = module.split(".", 1)[0]
+    if not is_python_interpreter(first):
+        return first
 
-                return top_level or raw_args[0]
+    flags = raw_args[1:]
 
-    return raw_args[0]
+    if "-m" not in flags:
+        return first
+
+    module_index = flags.index("-m") + 1
+
+    if module_index >= len(flags):
+        return first
+
+    return flags[module_index].split(".", 1)[0] or first
 
 
 def coerce_commands(
@@ -50,11 +52,9 @@ def coerce_commands(
         case list() if all(isinstance(item, str) for item in value):
             return list(value)
         case _:
-            location = (
-                f"{config_table}.{environment}.{kind}.{name}"
-                if sub_key is None
-                else f"{config_table}.{environment}.{kind}.{name}.{sub_key}"
-            )
+            parts = [config_table, environment, kind, name, sub_key]
+            location = ".".join(part for part in parts if part is not None)
+
             logger.warning(
                 "poetry-run-actions: ignoring %s; expected str or list[str], got %r",
                 location,
