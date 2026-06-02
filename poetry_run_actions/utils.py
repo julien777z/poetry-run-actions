@@ -4,13 +4,13 @@ import re
 
 logger = logging.getLogger(__name__)
 
-_PYTHON_INTERPRETER_RE = re.compile(r"python\d*(?:\.\d+)?")
+PYTHON_INTERPRETER_RE = re.compile(r"python\d*(?:\.\d+)?")
 
 
 def is_python_interpreter(token: str) -> bool:
     """Return True if `token` looks like a python interpreter executable."""
 
-    return bool(_PYTHON_INTERPRETER_RE.fullmatch(os.path.basename(token)))
+    return bool(PYTHON_INTERPRETER_RE.fullmatch(os.path.basename(token)))
 
 
 def extract_target_name(raw_args: list[str]) -> str:

@@ -9,7 +9,7 @@ from poetry_run_actions.plugin import (
     PACKAGES_KEY,
     RunActionsPlugin,
 )
-from tests.unit._helpers import pyproject as _pyproject
+from tests.unit.helpers import make_pyproject
 
 
 class TestPythonModuleTargetResolution:
@@ -25,7 +25,7 @@ class TestPythonModuleTargetResolution:
         monkeypatch.delenv(ENV_VAR, raising=False)
 
         pyproject_path = tmp_path / "pyproject.toml"
-        pyproject = _pyproject(
+        pyproject = make_pyproject(
             DEFAULT_ENV,
             {PACKAGES_KEY: {"api": {COMMANDS_KEY: ["docker compose up -d redis"]}}},
         )
@@ -35,7 +35,7 @@ class TestPythonModuleTargetResolution:
             pyproject_path=pyproject_path,
         )
 
-        RunActionsPlugin()._on_command(event, "console.command", MagicMock())
+        RunActionsPlugin().on_command(event, "console.command", MagicMock())
 
         assert run_mock.call_count == 1
         assert run_mock.call_args.args[0] == "docker compose up -d redis"
@@ -50,14 +50,14 @@ class TestPythonModuleTargetResolution:
         monkeypatch.delenv(ENV_VAR, raising=False)
 
         pyproject_path = tmp_path / "pyproject.toml"
-        pyproject = _pyproject(DEFAULT_ENV, {PACKAGES_KEY: {"api": "echo api"}})
+        pyproject = make_pyproject(DEFAULT_ENV, {PACKAGES_KEY: {"api": "echo api"}})
         event = make_event(
             args=["python3.12", "-m", "api.cli"],
             pyproject_data=pyproject,
             pyproject_path=pyproject_path,
         )
 
-        RunActionsPlugin()._on_command(event, "console.command", MagicMock())
+        RunActionsPlugin().on_command(event, "console.command", MagicMock())
 
         assert run_mock.call_count == 1
         assert run_mock.call_args.args[0] == "echo api"
@@ -72,14 +72,14 @@ class TestPythonModuleTargetResolution:
         monkeypatch.delenv(ENV_VAR, raising=False)
 
         pyproject_path = tmp_path / "pyproject.toml"
-        pyproject = _pyproject(DEFAULT_ENV, {PACKAGES_KEY: {"api": "echo api"}})
+        pyproject = make_pyproject(DEFAULT_ENV, {PACKAGES_KEY: {"api": "echo api"}})
         event = make_event(
             args=["python", "-u", "-m", "api"],
             pyproject_data=pyproject,
             pyproject_path=pyproject_path,
         )
 
-        RunActionsPlugin()._on_command(event, "console.command", MagicMock())
+        RunActionsPlugin().on_command(event, "console.command", MagicMock())
 
         assert run_mock.call_count == 1
         assert run_mock.call_args.args[0] == "echo api"
@@ -94,13 +94,13 @@ class TestPythonModuleTargetResolution:
         monkeypatch.delenv(ENV_VAR, raising=False)
 
         pyproject_path = tmp_path / "pyproject.toml"
-        pyproject = _pyproject(DEFAULT_ENV, {PACKAGES_KEY: {"api": "echo api"}})
+        pyproject = make_pyproject(DEFAULT_ENV, {PACKAGES_KEY: {"api": "echo api"}})
         event = make_event(
             args=["python", "script.py"],
             pyproject_data=pyproject,
             pyproject_path=pyproject_path,
         )
 
-        RunActionsPlugin()._on_command(event, "console.command", MagicMock())
+        RunActionsPlugin().on_command(event, "console.command", MagicMock())
 
         run_mock.assert_not_called()

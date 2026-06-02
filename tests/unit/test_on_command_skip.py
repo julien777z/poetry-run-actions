@@ -8,7 +8,7 @@ from poetry_run_actions.plugin import (
     PACKAGES_KEY,
     RunActionsPlugin,
 )
-from tests.unit._helpers import pyproject as _pyproject
+from tests.unit.helpers import make_pyproject
 
 
 class TestOnCommandSkipPaths:
@@ -22,7 +22,7 @@ class TestOnCommandSkipPaths:
 
         event = make_event(command_name="install", args=None, pyproject_data={})
 
-        RunActionsPlugin()._on_command(event, "console.command", MagicMock())
+        RunActionsPlugin().on_command(event, "console.command", MagicMock())
 
         run_mock.assert_not_called()
 
@@ -34,7 +34,7 @@ class TestOnCommandSkipPaths:
 
         event = make_event(args=None)
 
-        RunActionsPlugin()._on_command(event, "console.command", MagicMock())
+        RunActionsPlugin().on_command(event, "console.command", MagicMock())
 
         run_mock.assert_not_called()
 
@@ -46,7 +46,7 @@ class TestOnCommandSkipPaths:
 
         event = make_event(args=["api"], pyproject_data={})
 
-        RunActionsPlugin()._on_command(event, "console.command", MagicMock())
+        RunActionsPlugin().on_command(event, "console.command", MagicMock())
 
         run_mock.assert_not_called()
 
@@ -59,12 +59,12 @@ class TestOnCommandSkipPaths:
         monkeypatch.setattr(subprocess, "run", run_mock)
         monkeypatch.delenv(ENV_VAR, raising=False)
 
-        pyproject = _pyproject(
+        pyproject = make_pyproject(
             DEFAULT_ENV, {PACKAGES_KEY: {"worker": "echo worker-only"}}
         )
         event = make_event(args=["api"], pyproject_data=pyproject)
 
-        RunActionsPlugin()._on_command(event, "console.command", MagicMock())
+        RunActionsPlugin().on_command(event, "console.command", MagicMock())
 
         run_mock.assert_not_called()
 
@@ -82,6 +82,6 @@ class TestOnCommandSkipPaths:
         }
         event = make_event(args=["api"], pyproject_data=pyproject)
 
-        RunActionsPlugin()._on_command(event, "console.command", MagicMock())
+        RunActionsPlugin().on_command(event, "console.command", MagicMock())
 
         run_mock.assert_not_called()
