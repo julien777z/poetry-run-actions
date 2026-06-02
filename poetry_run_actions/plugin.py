@@ -104,11 +104,11 @@ class RunActionsPlugin(ApplicationPlugin):
         }
 
         matches = [
-            (kind, kind_table[name])
+            (kind, entry)
             for kind, declared in declared_by_kind.items()
             if name in declared
             and isinstance(kind_table := env_table.get(kind, {}), dict)
-            and name in kind_table
+            and (entry := kind_table.get(name)) is not None
         ]
 
         if len(matches) > 1:
