@@ -8,7 +8,7 @@ from poetry_run_actions.plugin import (
     SETUP_KEY,
     RunActionsPlugin,
 )
-from tests.unit._helpers import pyproject as _pyproject
+from tests.unit.helpers import make_pyproject
 
 
 class TestResolveTargetEntry:
@@ -17,7 +17,7 @@ class TestResolveTargetEntry:
     def test_returns_empty_when_table_missing(self):
         """Test that resolve returns empty lists when the actions table is absent."""
 
-        setup, commands = RunActionsPlugin._resolve_target_entry({}, "dev", "api")
+        setup, commands = RunActionsPlugin.resolve_target_entry({}, "dev", "api")
 
         assert setup == []
         assert commands == []
@@ -25,9 +25,9 @@ class TestResolveTargetEntry:
     def test_returns_empty_when_environment_missing(self):
         """Test that resolve returns empty lists when the environment table is absent."""
 
-        pyproject = _pyproject("dev", {PACKAGES_KEY: {"api": "echo hi"}})
+        pyproject = make_pyproject("dev", {PACKAGES_KEY: {"api": "echo hi"}})
 
-        setup, commands = RunActionsPlugin._resolve_target_entry(pyproject, "production", "api")
+        setup, commands = RunActionsPlugin.resolve_target_entry(pyproject, "production", "api")
 
         assert setup == []
         assert commands == []
@@ -35,9 +35,9 @@ class TestResolveTargetEntry:
     def test_returns_empty_when_target_kind_missing(self):
         """Test that resolve returns empty lists when neither packages nor scripts subtables exist."""
 
-        pyproject = _pyproject("dev", {})
+        pyproject = make_pyproject("dev", {})
 
-        setup, commands = RunActionsPlugin._resolve_target_entry(pyproject, "dev", "api")
+        setup, commands = RunActionsPlugin.resolve_target_entry(pyproject, "dev", "api")
 
         assert setup == []
         assert commands == []
@@ -45,9 +45,9 @@ class TestResolveTargetEntry:
     def test_returns_empty_when_name_missing_under_packages(self):
         """Test that resolve returns empty lists when the package key is absent."""
 
-        pyproject = _pyproject("dev", {PACKAGES_KEY: {"api": "echo hi"}})
+        pyproject = make_pyproject("dev", {PACKAGES_KEY: {"api": "echo hi"}})
 
-        setup, commands = RunActionsPlugin._resolve_target_entry(pyproject, "dev", "worker")
+        setup, commands = RunActionsPlugin.resolve_target_entry(pyproject, "dev", "worker")
 
         assert setup == []
         assert commands == []
@@ -55,13 +55,13 @@ class TestResolveTargetEntry:
     def test_returns_empty_when_name_missing_under_scripts(self):
         """Test that resolve returns empty lists when the script key is absent."""
 
-        pyproject = _pyproject(
+        pyproject = make_pyproject(
             "dev",
             {SCRIPTS_KEY: {"migrate": "echo hi"}},
             scripts=["migrate", "lint"],
         )
 
-        setup, commands = RunActionsPlugin._resolve_target_entry(pyproject, "dev", "lint")
+        setup, commands = RunActionsPlugin.resolve_target_entry(pyproject, "dev", "lint")
 
         assert setup == []
         assert commands == []
@@ -69,9 +69,9 @@ class TestResolveTargetEntry:
     def test_string_shorthand_under_packages(self):
         """Test that a bare string entry under packages becomes a single pre-start command."""
 
-        pyproject = _pyproject("dev", {PACKAGES_KEY: {"api": "echo hi"}})
+        pyproject = make_pyproject("dev", {PACKAGES_KEY: {"api": "echo hi"}})
 
-        setup, commands = RunActionsPlugin._resolve_target_entry(pyproject, "dev", "api")
+        setup, commands = RunActionsPlugin.resolve_target_entry(pyproject, "dev", "api")
 
         assert setup == []
         assert commands == ["echo hi"]
@@ -79,9 +79,9 @@ class TestResolveTargetEntry:
     def test_string_shorthand_under_scripts(self):
         """Test that a bare string entry under scripts becomes a single pre-start command."""
 
-        pyproject = _pyproject("dev", {SCRIPTS_KEY: {"migrate": "echo hi"}})
+        pyproject = make_pyproject("dev", {SCRIPTS_KEY: {"migrate": "echo hi"}})
 
-        setup, commands = RunActionsPlugin._resolve_target_entry(pyproject, "dev", "migrate")
+        setup, commands = RunActionsPlugin.resolve_target_entry(pyproject, "dev", "migrate")
 
         assert setup == []
         assert commands == ["echo hi"]
@@ -89,11 +89,11 @@ class TestResolveTargetEntry:
     def test_list_shorthand_under_packages(self):
         """Test that a list entry under packages becomes the pre-start command list in order."""
 
-        pyproject = _pyproject(
+        pyproject = make_pyproject(
             "dev", {PACKAGES_KEY: {"api": ["echo a", "echo b", "echo c"]}}
         )
 
-        setup, commands = RunActionsPlugin._resolve_target_entry(pyproject, "dev", "api")
+        setup, commands = RunActionsPlugin.resolve_target_entry(pyproject, "dev", "api")
 
         assert setup == []
         assert commands == ["echo a", "echo b", "echo c"]
@@ -101,7 +101,7 @@ class TestResolveTargetEntry:
     def test_full_form_under_packages_returns_setup_and_pre_start_commands(self):
         """Test that the full table form under packages populates both lists."""
 
-        pyproject = _pyproject(
+        pyproject = make_pyproject(
             "dev",
             {
                 PACKAGES_KEY: {
@@ -113,7 +113,7 @@ class TestResolveTargetEntry:
             },
         )
 
-        setup, commands = RunActionsPlugin._resolve_target_entry(pyproject, "dev", "api")
+        setup, commands = RunActionsPlugin.resolve_target_entry(pyproject, "dev", "api")
 
         assert setup == ["docker compose up -d redis"]
         assert commands == ["echo starting api"]
@@ -121,7 +121,7 @@ class TestResolveTargetEntry:
     def test_full_form_under_scripts_returns_setup_and_pre_start_commands(self):
         """Test that the full table form under scripts populates both lists."""
 
-        pyproject = _pyproject(
+        pyproject = make_pyproject(
             "dev",
             {
                 SCRIPTS_KEY: {
@@ -133,7 +133,7 @@ class TestResolveTargetEntry:
             },
         )
 
-        setup, commands = RunActionsPlugin._resolve_target_entry(pyproject, "dev", "migrate")
+        setup, commands = RunActionsPlugin.resolve_target_entry(pyproject, "dev", "migrate")
 
         assert setup == ["echo s"]
         assert commands == ["echo c"]
@@ -141,11 +141,11 @@ class TestResolveTargetEntry:
     def test_full_form_with_only_setup_commands(self):
         """Test that the full form works when only setup-commands is provided."""
 
-        pyproject = _pyproject(
+        pyproject = make_pyproject(
             "dev", {PACKAGES_KEY: {"api": {SETUP_KEY: "echo setup"}}}
         )
 
-        setup, commands = RunActionsPlugin._resolve_target_entry(pyproject, "dev", "api")
+        setup, commands = RunActionsPlugin.resolve_target_entry(pyproject, "dev", "api")
 
         assert setup == ["echo setup"]
         assert commands == []
@@ -153,11 +153,11 @@ class TestResolveTargetEntry:
     def test_full_form_with_only_pre_start_commands(self):
         """Test that the full form works when only pre-start-commands is provided."""
 
-        pyproject = _pyproject(
+        pyproject = make_pyproject(
             "dev", {PACKAGES_KEY: {"api": {COMMANDS_KEY: ["echo go"]}}}
         )
 
-        setup, commands = RunActionsPlugin._resolve_target_entry(pyproject, "dev", "api")
+        setup, commands = RunActionsPlugin.resolve_target_entry(pyproject, "dev", "api")
 
         assert setup == []
         assert commands == ["echo go"]
@@ -175,10 +175,10 @@ class TestResolveTargetEntry:
     ):
         """Test that an unsupported top-level entry shape logs a warning and yields nothing."""
 
-        pyproject = _pyproject("dev", {PACKAGES_KEY: {"api": value}})
+        pyproject = make_pyproject("dev", {PACKAGES_KEY: {"api": value}})
 
         with caplog.at_level("WARNING"):
-            setup, commands = RunActionsPlugin._resolve_target_entry(pyproject, "dev", "api")
+            setup, commands = RunActionsPlugin.resolve_target_entry(pyproject, "dev", "api")
 
         assert setup == []
         assert commands == []
@@ -189,10 +189,10 @@ class TestResolveTargetEntry:
     ):
         """Test that an invalid inner value warns with the full table.env.kind.name.sub-key path."""
 
-        pyproject = _pyproject("dev", {PACKAGES_KEY: {"api": {SETUP_KEY: 42}}})
+        pyproject = make_pyproject("dev", {PACKAGES_KEY: {"api": {SETUP_KEY: 42}}})
 
         with caplog.at_level("WARNING"):
-            setup, commands = RunActionsPlugin._resolve_target_entry(pyproject, "dev", "api")
+            setup, commands = RunActionsPlugin.resolve_target_entry(pyproject, "dev", "api")
 
         assert setup == []
         assert commands == []
@@ -204,12 +204,12 @@ class TestResolveTargetEntry:
     def test_mixed_list_inner_value_logs_warning(self, caplog: pytest.LogCaptureFixture):
         """Test that a list mixing strings and non-strings is rejected and warned about."""
 
-        pyproject = _pyproject(
+        pyproject = make_pyproject(
             "dev", {PACKAGES_KEY: {"api": {COMMANDS_KEY: ["echo a", 7]}}}
         )
 
         with caplog.at_level("WARNING"):
-            setup, commands = RunActionsPlugin._resolve_target_entry(pyproject, "dev", "api")
+            setup, commands = RunActionsPlugin.resolve_target_entry(pyproject, "dev", "api")
 
         assert setup == []
         assert commands == []
@@ -221,13 +221,13 @@ class TestResolveTargetEntry:
     def test_unknown_package_does_not_fire(self):
         """Test that an entry under packages.<name> with no matching declared package is skipped."""
 
-        pyproject = _pyproject(
+        pyproject = make_pyproject(
             "dev",
             {PACKAGES_KEY: {"ghost": "echo nope"}},
             packages=["api", "worker"],
         )
 
-        setup, commands = RunActionsPlugin._resolve_target_entry(pyproject, "dev", "ghost")
+        setup, commands = RunActionsPlugin.resolve_target_entry(pyproject, "dev", "ghost")
 
         assert setup == []
         assert commands == []
@@ -235,13 +235,13 @@ class TestResolveTargetEntry:
     def test_unknown_script_does_not_fire(self):
         """Test that an entry under scripts.<name> with no matching declared script is skipped."""
 
-        pyproject = _pyproject(
+        pyproject = make_pyproject(
             "dev",
             {SCRIPTS_KEY: {"ghost": "echo nope"}},
             scripts=["migrate"],
         )
 
-        setup, commands = RunActionsPlugin._resolve_target_entry(pyproject, "dev", "ghost")
+        setup, commands = RunActionsPlugin.resolve_target_entry(pyproject, "dev", "ghost")
 
         assert setup == []
         assert commands == []
@@ -251,7 +251,7 @@ class TestResolveTargetEntry:
     ):
         """Test that a name configured under both packages and scripts logs a warning and fires neither."""
 
-        pyproject = _pyproject(
+        pyproject = make_pyproject(
             "dev",
             {
                 PACKAGES_KEY: {"api": "echo pkg"},
@@ -262,7 +262,7 @@ class TestResolveTargetEntry:
         )
 
         with caplog.at_level("WARNING"):
-            setup, commands = RunActionsPlugin._resolve_target_entry(pyproject, "dev", "api")
+            setup, commands = RunActionsPlugin.resolve_target_entry(pyproject, "dev", "api")
 
         assert setup == []
         assert commands == []
@@ -285,7 +285,7 @@ class TestResolveTargetEntry:
             }
         }
 
-        setup, commands = RunActionsPlugin._resolve_target_entry(pyproject, "dev", "migrate")
+        setup, commands = RunActionsPlugin.resolve_target_entry(pyproject, "dev", "migrate")
 
         assert setup == []
         assert commands == ["echo m"]

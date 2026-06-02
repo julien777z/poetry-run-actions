@@ -1,7 +1,7 @@
 from poetry_run_actions.plugin import CONFIG_TABLE
 
 
-def pyproject(
+def make_pyproject(
     env: str,
     mapping: dict[str, object],
     *,

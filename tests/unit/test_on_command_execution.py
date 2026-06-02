@@ -12,7 +12,7 @@ from poetry_run_actions.plugin import (
     SETUP_KEY,
     RunActionsPlugin,
 )
-from tests.unit._helpers import pyproject as _pyproject
+from tests.unit.helpers import make_pyproject
 
 
 class TestOnCommandExecution:
@@ -28,12 +28,12 @@ class TestOnCommandExecution:
         monkeypatch.delenv(ENV_VAR, raising=False)
 
         pyproject_path = tmp_path / "pyproject.toml"
-        pyproject = _pyproject(
+        pyproject = make_pyproject(
             DEFAULT_ENV, {PACKAGES_KEY: {"api": ["echo a", "echo b"]}}
         )
         event = make_event(args=["api"], pyproject_data=pyproject, pyproject_path=pyproject_path)
 
-        RunActionsPlugin()._on_command(event, "console.command", MagicMock())
+        RunActionsPlugin().on_command(event, "console.command", MagicMock())
 
         assert run_mock.call_count == 2
         for call, expected in zip(run_mock.call_args_list, ["echo a", "echo b"], strict=True):
@@ -52,7 +52,7 @@ class TestOnCommandExecution:
         monkeypatch.delenv(ENV_VAR, raising=False)
 
         pyproject_path = tmp_path / "pyproject.toml"
-        pyproject = _pyproject(
+        pyproject = make_pyproject(
             DEFAULT_ENV,
             {
                 PACKAGES_KEY: {
@@ -65,7 +65,7 @@ class TestOnCommandExecution:
         )
         event = make_event(args=["api"], pyproject_data=pyproject, pyproject_path=pyproject_path)
 
-        RunActionsPlugin()._on_command(event, "console.command", MagicMock())
+        RunActionsPlugin().on_command(event, "console.command", MagicMock())
 
         executed = [call.args[0] for call in run_mock.call_args_list]
 
@@ -81,12 +81,12 @@ class TestOnCommandExecution:
         monkeypatch.delenv(ENV_VAR, raising=False)
 
         pyproject_path = tmp_path / "pyproject.toml"
-        pyproject = _pyproject(
+        pyproject = make_pyproject(
             DEFAULT_ENV, {PACKAGES_KEY: {"api": {SETUP_KEY: "echo setup"}}}
         )
         event = make_event(args=["api"], pyproject_data=pyproject, pyproject_path=pyproject_path)
 
-        RunActionsPlugin()._on_command(event, "console.command", MagicMock())
+        RunActionsPlugin().on_command(event, "console.command", MagicMock())
 
         assert run_mock.call_count == 1
         assert run_mock.call_args.args[0] == "echo setup"
@@ -112,7 +112,7 @@ class TestOnCommandExecution:
         }
         event = make_event(args=["api"], pyproject_data=pyproject, pyproject_path=pyproject_path)
 
-        RunActionsPlugin()._on_command(event, "console.command", MagicMock())
+        RunActionsPlugin().on_command(event, "console.command", MagicMock())
 
         assert run_mock.call_count == 1
         assert run_mock.call_args.args[0] == "echo staging"
@@ -127,10 +127,10 @@ class TestOnCommandExecution:
         monkeypatch.delenv(ENV_VAR, raising=False)
 
         pyproject_path = tmp_path / "pyproject.toml"
-        pyproject = _pyproject(DEFAULT_ENV, {PACKAGES_KEY: {"api": "echo dev"}})
+        pyproject = make_pyproject(DEFAULT_ENV, {PACKAGES_KEY: {"api": "echo dev"}})
         event = make_event(args=["api"], pyproject_data=pyproject, pyproject_path=pyproject_path)
 
-        RunActionsPlugin()._on_command(event, "console.command", MagicMock())
+        RunActionsPlugin().on_command(event, "console.command", MagicMock())
 
         assert run_mock.call_count == 1
         assert run_mock.call_args.args[0] == "echo dev"
@@ -150,12 +150,12 @@ class TestOnCommandExecution:
         monkeypatch.delenv(ENV_VAR, raising=False)
 
         pyproject_path = tmp_path / "pyproject.toml"
-        pyproject = _pyproject(
+        pyproject = make_pyproject(
             DEFAULT_ENV, {PACKAGES_KEY: {"api": ["echo first", "echo second"]}}
         )
         event = make_event(args=["api"], pyproject_data=pyproject, pyproject_path=pyproject_path)
 
-        RunActionsPlugin()._on_command(event, "console.command", MagicMock())
+        RunActionsPlugin().on_command(event, "console.command", MagicMock())
 
         executed = [call.args[0] for call in run_mock.call_args_list]
 
@@ -173,12 +173,12 @@ class TestOnCommandExecution:
         monkeypatch.delenv(ENV_VAR, raising=False)
 
         pyproject_path = tmp_path / "pyproject.toml"
-        pyproject = _pyproject(
+        pyproject = make_pyproject(
             DEFAULT_ENV, {PACKAGES_KEY: {"api": {SETUP_KEY: "echo s"}}}
         )
         event = make_event(args=["api"], pyproject_data=pyproject, pyproject_path=pyproject_path)
 
-        RunActionsPlugin()._on_command(event, "console.command", MagicMock())
+        RunActionsPlugin().on_command(event, "console.command", MagicMock())
 
         log_messages = [call.args[0] for call in event.io.write_line.call_args_list]
 
@@ -192,14 +192,14 @@ class TestOnCommandExecution:
         monkeypatch.delenv(ENV_VAR, raising=False)
 
         pyproject_path = tmp_path / "pyproject.toml"
-        pyproject = _pyproject(
+        pyproject = make_pyproject(
             DEFAULT_ENV, {SCRIPTS_KEY: {"migrate": "echo migrate"}}
         )
         event = make_event(
             args=["migrate"], pyproject_data=pyproject, pyproject_path=pyproject_path
         )
 
-        RunActionsPlugin()._on_command(event, "console.command", MagicMock())
+        RunActionsPlugin().on_command(event, "console.command", MagicMock())
 
         assert run_mock.call_count == 1
         assert run_mock.call_args.args[0] == "echo migrate"

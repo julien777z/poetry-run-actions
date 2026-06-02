@@ -33,9 +33,9 @@ class RunActionsPlugin(ApplicationPlugin):
     def activate(self, application: Application) -> None:
         """Register the COMMAND event listener on the Poetry application."""
 
-        application.event_dispatcher.add_listener(COMMAND, self._on_command)
+        application.event_dispatcher.add_listener(COMMAND, self.on_command)
 
-    def _on_command(
+    def on_command(
         self,
         event: ConsoleCommandEvent,
         event_name: str,
@@ -56,7 +56,7 @@ class RunActionsPlugin(ApplicationPlugin):
         name = extract_target_name(raw_args)
         environment = os.environ.get(ENV_VAR, DEFAULT_ENV)
 
-        setup_actions, pre_start_actions = self._resolve_target_entry(
+        setup_actions, pre_start_actions = self.resolve_target_entry(
             command.poetry.pyproject.data, environment, name
         )
 
@@ -88,7 +88,7 @@ class RunActionsPlugin(ApplicationPlugin):
                 )
 
     @classmethod
-    def _resolve_target_entry(
+    def resolve_target_entry(
         cls, pyproject_data: dict, environment: str, name: str
     ) -> tuple[list[str], list[str]]:
         """Return (setup, pre-start) lists for the configured package or script entry."""
@@ -131,10 +131,10 @@ class RunActionsPlugin(ApplicationPlugin):
 
         kind, entry = matches[0]
 
-        return cls._coerce_entry(entry, environment, kind, name)
+        return cls.coerce_entry(entry, environment, kind, name)
 
     @classmethod
-    def _coerce_entry(
+    def coerce_entry(
         cls, value: object, environment: str, kind: str, name: str
     ) -> tuple[list[str], list[str]]:
         """Coerce an entry value (str | list | full table) into (setup, pre-start) lists."""
