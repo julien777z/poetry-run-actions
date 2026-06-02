@@ -1,0 +1,468 @@
+---
+name: python
+description: Follow modern Python typing, import, formatting, error handling, and maintainability conventions.
+---
+
+# Python Rules
+
+## Refactor/Deslop Safety
+
+- Do not remove intentional feature logic introduced on the current branch just because it looks "extra" (for example new metadata models, typed payload helpers, or feature-specific abstractions).
+- Before deleting newly added code, verify it is not part of the branch objective by checking nearby tests/call sites and the active user request.
+- If style-cleanup instructions conflict with clear feature intent, preserve behavior first and ask a clarifying question instead of removing the feature code.
+
+## Modern Syntax
+
+- Use modern type hints: `str | None` instead of `Optional[str]`.
+- Use built-in generics: `list[T]`, `dict[K, V]` instead of `List[T]`, `Dict[K, V]`.
+- Use `Self` from `typing` for class method return types.
+- Use `collections.abc` for abstract types: `Callable`, `Iterable`, etc.
+- Never use `Protocol` for model typing; use concrete model classes in type annotations.
+
+## Typed Data Shapes
+
+- Never pass around arbitrary inline dictionaries for structured payloads (for example, job records or message envelopes).
+- Use `TypedDict` for lightweight typed mappings when a dict shape is required.
+- Use `BaseModel` when validation or serialization is needed.
+- Never use `Any` in application or test type annotations; use the exact type (or a precise union) instead.
+- If a shape is dynamic or nested, model it explicitly with `TypedDict` or `BaseModel` instead of falling back to `Any`.
+- Avoid untyped `dict[str, object]` payload construction in service logic.
+- Avoid `cast(...)` in application code; use real SDK/model types at call boundaries whenever possible.
+- Use `cast(...)` only for true edge cases where type information cannot be expressed otherwise, and keep the cast narrowly scoped.
+- For `TypedDict` fields and dict shapes produced from Pydantic models, never use `object` as a placeholder value type; use the exact value type (or a precise union) for each field.
+- Do not "fix" typing by expanding simple transformations into repetitive key-by-key copy blocks (for example, manually assigning each dict key only to satisfy pyright). Fix the source type hints (or add a precise cast/narrowing at the boundary) so the transformation can stay concise and readable.
+- For persistence/update payloads (for example, `upsert(...)`), define a dedicated `TypedDict` and build it via a helper function instead of repeating inline dict literals in multiple call sites.
+- When a `TypedDict` types a module-level constant or other shared blob (for example a CVA style config), build the value by **calling** the TypedDict constructor with keyword arguments (`MyTypedDict(field=value, ...)`) instead of assigning an annotated plain dict literal (`name: MyTypedDict = {...}`). Use the same for nested TypedDict rows inside lists (for example `CompoundVariantRule(match={...}, class_name="...")`). This keeps the type as the construction site, not only a static annotation on a dict literal. Requires Python 3.12+.
+
+```python
+from typing import TypedDict
+
+from pydantic import BaseModel
+
+# Bad: implicit, untyped payload shape
+payload = {"organization_id": envelope.organization_id, "status": "queued"}
+
+# Good: TypedDict for mapping payloads
+class JobPayload(TypedDict):
+    organization_id: str
+    status: str
+
+payload_typed: JobPayload = {
+    "organization_id": envelope.organization_id,
+    "status": "queued",
+}
+
+# Good: BaseModel when validation/serialization is useful
+class JobPayloadModel(BaseModel):
+    organization_id: str
+    status: str
+
+payload_for_insert = JobPayloadModel(
+    organization_id=envelope.organization_id,
+    status="queued",
+).model_dump()
+
+# Better for repeated DB payloads: TypedDict + builder
+class JobUpsertPayload(TypedDict):
+    organization_id: str
+    user_id: str
+    status: str
+
+def build_job_upsert_payload(*, organization_id: str, user_id: str) -> JobUpsertPayload:
+    return JobUpsertPayload(
+        organization_id=organization_id,
+        user_id=user_id,
+        status="queued",
+    )
+
+# Bad: object hides the real field type contract
+class ContractorSyncPayloadBad(TypedDict):
+    contractor_id: object
+    is_active: object
+    tags: object
+
+# Good: use exact types (or precise unions)
+class ContractorSyncPayload(TypedDict):
+    contractor_id: str
+    is_active: bool
+    tags: list[str]
+
+class ContractorSyncBody(BaseModel):
+    contractor_id: str
+    is_active: bool
+    tags: list[str]
+
+payload_from_model: ContractorSyncPayload = ContractorSyncBody(
+    contractor_id="ctr_123",
+    is_active=True,
+    tags=["priority"],
+).model_dump()
+```
+
+## Date & Time
+
+- Use `datetime` objects instead of raw integers (Unix timestamps) for representing time.
+- Use `timedelta` for durations instead of raw integers (for example, `timedelta(seconds=10)` instead of `10`).
+- For database columns, use `DateTime` or `Date` types from SQLAlchemy.
+- For Pydantic models, use `datetime.datetime` or `datetime.date` types.
+
+## Imports
+
+- Keep ALL imports at the top of the file.
+- Never import inside functions, methods, or test cases.
+- Group imports: stdlib, third-party, local (separated by blank lines).
+- Prefer **absolute imports** from the top-level package (for example `from api.routes.users import router`) over **relative imports** with parent segments (for example `from ....routes.users import router`). Absolute imports are stable when modules move, easier to grep, and avoid brittle `..` depth. Same rule applies to other installable packages: always anchor imports on the package name, not on the file’s directory depth.
+- Never use import aliases for project modules; import the canonical symbol/module name and update call sites to that name instead of aliasing.
+- Use `__all__` exports in module `__init__.py` files.
+- Never define variables or call functions in between import statements; all imports must be contiguous at the top of the file.
+- Never create shim modules that only re-export symbols from another package for backwards compatibility; update all consumers to import from the canonical source instead.
+- Narrow exception: `__main__.py` entrypoints may use same-package relative imports for bootstrap (for example `from .runtime import main`), and `__init__.py` may use explicit relative imports when assembling the package’s public surface.
+
+```python
+# Bad: shim module that only re-exports symbols
+from .http_transport import fetch, fetch_with_cache
+
+__all__ = ["fetch", "fetch_with_cache"]
+
+# Bad: consuming through a shim module
+from project_name.http import fetch
+
+# Good: import from the canonical source directly
+from project_name.http_transport import fetch
+```
+
+## Static analysis (Pylint, type checkers)
+
+- Prefer real fixes (annotations, stubs, deps). If a Pylint/static warning is a false positive or unfixable in our code (for example lazy third-party exports, missing stubs), use a **narrow** suppression: `# pylint: disable-next=<message-id>` on the smallest scope—never file-wide disables or import workarounds whose only purpose is to satisfy the checker.
+
+```python
+# pylint: disable-next=not-callable
+config = package_namespace.Config(
+    app_name="example",
+)
+```
+
+## Constants
+
+- Define constants at the top of the file, after imports.
+- Place module-level constants and enums (including type aliases like `AllowedApiClient`) directly after imports.
+- Use `Final[T]` type annotation from `typing` for constants.
+- When a mutable object is annotated with `Final`, complete any setup-time mutation in the same expression as initialization instead of binding it first and mutating it on the next line.
+- Use UPPER_SNAKE_CASE naming convention for constants.
+- Only extract literals to constants when they are reused, configurable, or carry domain meaning; keep trivial single-use literals inline (for example, delimiters like `"-"` or `"."`).
+- Never hard-code constants like HTTP status codes; use `HTTPStatus` from the `http` module instead.
+- Prefer enums for error identifiers/messages instead of a constant per error string.
+
+## Leading underscore (private names)
+
+- Use a leading underscore **only** for nested definitions: a function defined inside another function or method (inner function), and a class defined inside another class (inner class).
+- Everything else must **not** start with a leading underscore. This includes module-level functions, classes, Pydantic/ORM models, enums, `TypedDict`s, type aliases, and constants; **methods** (instance methods, `@classmethod`, and `@staticmethod`); and **module / file names**.
+- Do not use a leading underscore to mark a method or a module-level helper as "private". Express privacy through module boundaries and `__all__` instead.
+- This rule does not govern Python dunders (`__init__`, `__enter__`, …) or single-underscore names owned by third-party/stdlib code.
+
+```python
+def build_report(rows: list[Row]) -> Report:
+    def _format_row(row: Row) -> str:
+        return f"{row.id}: {row.name}"
+
+    return Report(lines=[_format_row(row) for row in rows])
+```
+
+## Configuration
+
+- Configuration settings (allowed environments, feature flags, API hosts, limits, etc.) should live in the repository's typed configuration layer, not as scattered module-level constants in service files.
+- Avoid large piles of module-level constants. If a value is configurable, add it to the project's central config model or settings layer.
+- Do not add useless config values like `DEFAULT_ENVIRONMENT`.
+- Do not add helper functions like `_get_environment` when the value already exists on `CONFIG`.
+- Do not read environment variables directly with `os.getenv`, `os.environ`, or `os.environ.get` in application/service/library code.
+- Always read environment-backed values from the typed config object so defaults, validation, and normalization live in one place.
+- Exception: one-off scripts may read from `os` when introducing a `CONFIG` model would be unnecessary overhead.
+
+## Helper Functions
+
+Avoid trivial wrapper functions that add no value. A function that just returns its argument or applies a trivial fallback is noise:
+
+- Do not rebind function arguments to a second local name when the value is unchanged (for example, `profile = obj`); name the parameter correctly at the signature instead.
+- Do not add passthrough function or method parameters when every call site provides the value from one shared source (for example, forwarding `timeout_seconds` from `CONFIG` in every call); read from that source directly where the value is used.
+
+## Model Mutation
+
+- Prefer normal attribute assignment over `object.__setattr__(...)` when mutating Pydantic models in validators or helper methods.
+- Only use `object.__setattr__(...)` when normal assignment is genuinely unavailable (for example frozen models or descriptor bypass requirements), and keep that escape hatch explicit and justified.
+
+```python
+# Bad: useless wrapper
+def _resolve_config(config: Settings | None) -> Settings:
+    return config or CONFIG
+
+def get_auth_secret(config: Settings | None = None) -> str:
+    resolved = _resolve_config(config)  # Unnecessary indirection
+    return resolved.SECRET
+
+# Good: inline the fallback
+def get_auth_secret(config: Settings | None = None) -> str:
+    resolved = config or CONFIG
+    return resolved.SECRET
+```
+
+## Third-Party SDK Methods
+
+- Verify SDK method availability before coding integrations:
+  - Prefer checking official docs with `@Browser`, or
+  - Inspect the installed SDK directly (for example with Python `inspect`/`hasattr`) in the current environment.
+- Do not add defensive attribute checks or fallback branches for third-party SDK methods (for example, catching `AttributeError` to try an alternate call path).
+- Call the expected SDK method directly; if the integration changes, update it explicitly rather than supporting multiple speculative shapes in runtime code.
+
+```python
+# Bad: speculative fallback for a "maybe async, maybe sync" SDK shape
+try:
+    memberships = await clerk.organization_memberships.list_async(
+        organization_id=clerk_org_id,
+        user_id=[clerk_user_id],
+        limit=1,
+    )
+except AttributeError:
+    membership = clerk.organization_memberships.get(
+        organization_id=clerk_org_id,
+        user_id=clerk_user_id,
+    )
+
+# Good: call the expected method directly
+memberships = await clerk.organization_memberships.list_async(
+    organization_id=clerk_org_id,
+    user_id=[clerk_user_id],
+    limit=1,
+)
+```
+
+## Complete Implementations (No Backwards-Compatible Branches)
+
+- Implement only the single contract used by the current boundary (database schema, SDK contract, or API model).
+- Do not widen types or add compatibility branches for alternate shapes that are not part of the real contract.
+- Example: If the DB column type is `UUID`, function parameters and call sites should use `UUID` only (not `UUID | str` with runtime conversion).
+- Prefer fixing call sites to provide the correct type over adding defensive conversion logic in core helpers.
+
+```python
+# Bad: backward-compatible branch for an unsupported secondary shape
+async def get_clerk_user_id_from_db(session: AsyncSession, user_id: UUID | str) -> str | None:
+    resolved_user_id = UUID(user_id) if isinstance(user_id, str) else user_id
+    user = await Users.get_one(session, where=Users.id == resolved_user_id)
+    ...
+
+# Good: single, complete implementation aligned to DB contract
+async def get_clerk_user_id_from_db(session: AsyncSession, user_id: UUID) -> str | None:
+    user = await Users.get_one(session, where=Users.id == user_id)
+    ...
+
+# Good call site: convert once at boundary
+contractor_id = response.json()["data"]["contractor_id"]
+clerk_user_id = await get_clerk_user_id_from_db(api_db_session, UUID(contractor_id))
+```
+
+## Caching Deterministic Builders
+
+- Use `@cache` (from `functools`) for expensive, deterministic builders that should be created once per process (for example, AI agents, parsed static configs, immutable lookup tables).
+- Only cache functions whose return value is safe to reuse and does not depend on request-scoped state.
+- Do not cache values that depend on mutable runtime inputs (per-request user data, DB sessions, auth context, timestamps).
+- Keep cached builders side-effect free and parameter-light.
+
+```python
+from functools import cache
+
+@cache
+def build_naics_agent() -> Agent[None, NaicsResolutionResult]:
+    return Agent(...)
+```
+
+## Stable Durable Identifiers
+
+- For values persisted in databases, queues, or cross-service contracts (for example handler names, event names, state keys), use explicit constants or enums.
+- Do not derive durable identifiers from implementation details like `function.__name__`.
+- Keep durable identifiers in shared model/contract modules when they are used across services.
+
+```python
+from enum import StrEnum
+
+
+class JobHandlerKey(StrEnum):
+    KYB_RECORDS_SYNC = "kyb_records_sync"
+
+# Good: explicit durable key
+register_job(job_type=JobType.BUSINESS_ONBOARDING_SUBMIT, handler_name=JobHandlerKey.KYB_RECORDS_SYNC.value)
+
+# Bad: fragile runtime-derived key
+register_job(job_type=JobType.BUSINESS_ONBOARDING_SUBMIT, handler_name=handler.__name__)
+```
+
+## Entry Point Design
+
+- Keep `__main__.py` and script entrypoints thin.
+- Entrypoints should only bootstrap and call a `main()` function from a dedicated runtime/service module.
+- Place orchestration loops, transaction flow, and business logic in regular modules, not in the entrypoint file.
+
+```python
+# __main__.py
+from .runtime import main
+
+if __name__ == "__main__":
+    main()
+```
+
+## Service Module Boundaries
+
+- Avoid monolithic service modules that mix orchestration, third-party API calls, policy decisions, and data mappers.
+- Split large services into focused modules, for example:
+  - orchestration module (route-facing flow)
+  - gateway module (external/internal API client calls)
+  - domain helper modules (policy/state decisions, AI resolution, etc.)
+- Keep public service function signatures stable while refactoring internals.
+
+## Shared Derived-State Helpers
+
+- When multiple functions compute the same derived state (for example completion/missing stage lists), centralize that logic in one helper.
+- Reuse the helper across read paths to avoid behavior drift.
+
+## Test Seams for Refactors
+
+- Keep explicit wrapper/helper functions for external dependencies so tests can patch clear module boundaries.
+- Prefer patching module-level seams (for example `kyb_sync_service.upsert_submission_sync_job`) over patching deep nested internals.
+
+## Formatting
+
+- Add a blank line after each docstring.
+- Never add decorative separator comments (for example, `# -----` headers).
+- Add a blank line after multi-line statements (function calls, context managers, etc.) before the next statement.
+- Add a blank line before terminating statements (`sys.exit()`, `return`, `raise`) to visually separate them from preceding code.
+- Add blank lines between logically unrelated code, but for short/compact blocks (2-3 lines), the separation is not needed.
+- When consecutive lines switch to a different statement kind (for example `assert` to a mock-verification call, or `setattr(...)` to an assignment), insert a blank line at the transition.
+- Add a blank line after setup/initialization code before the main logic begins.
+
+```python
+# Good: blank line separates setup from main logic
+versions_dir = tmp_path / "versions"
+versions_dir.mkdir()
+
+_create_migration_file(versions_dir, "rev1", None)
+_create_migration_file(versions_dir, "rev2", "rev1")
+
+# Bad: no separation between setup and main logic
+versions_dir = tmp_path / "versions"
+versions_dir.mkdir()
+_create_migration_file(versions_dir, "rev1", None)
+```
+
+- Add a blank line before multi-line assert statements.
+- Do NOT put docstrings or comments at the top of files (no module-level docstrings, no module-level comments, and no encoding header comments like `# coding: utf-8`); `__init__.py` files should either be empty or contain only imports and `__all__`.
+
+## Conditionals
+
+- Combine conditional branches with `or` when they have the same body (including separate `if` statements and `if`/`elif` chains).
+- Do not use an `if`/`else` block just to choose which attribute or mapping values to read. When the goal is only to select a source object and then read the same fields, resolve the source once with `or` and read from that single variable.
+
+```python
+# Good: combined conditions in one branch
+if not current_user.org_id or current_user.org_id != organization_id:
+    raise PermissionError("User is not in the organization")
+
+# Bad: separate branches with identical bodies
+if not current_user.org_id:
+    raise PermissionError("User is not in the organization")
+
+if current_user.org_id != organization_id:
+    raise PermissionError("User is not in the organization")
+```
+
+```python
+# Good: resolve the source once, then read fields once
+request_payload = request or {"name": ""}
+resolved_name = request_payload["name"]
+resolved_slug = request_payload.get("slug") or ""
+
+# Bad: duplicated field extraction across branches
+if request is None:
+    resolved_name = ""
+    resolved_slug = ""
+else:
+    resolved_name = request["name"]
+    resolved_slug = request.get("slug") or ""
+```
+
+## Pattern Matching
+
+- Use `match` statement instead of chains of `if`/`elif` statements when dispatching on enum members or discriminant values.
+- For data-driven column/field selection with many independent boolean flags, prefer a declarative mapping iterated in a loop over repeated `if` blocks.
+- Use enums with descriptive string values for column names, header labels, and other user-facing strings instead of raw string literals scattered across functions.
+
+## Logging
+
+- Use the `logging` module instead of `print()` statements in all code, including scripts and CLI tools.
+- Configure a logger at the top of each module: `logger = logging.getLogger(__name__)`.
+- Use appropriate log levels: `debug`, `info`, `warning`, `error`, `critical`.
+- Never use `print()` for debugging, status messages, progress, or diagnostics — use `logger` instead.
+
+## Docstrings
+
+- Every **function**, **method**, and **class** should have a one-line docstring (purpose or role). Include `main()` and private helpers (`_foo`) the same way unless the file’s existing style omits docstrings on tiny locals—when in doubt, add one line.
+- Keep docstrings to a single line. Do not include Args, Returns, or Raises sections.
+- Class docstrings go directly after the class definition.
+- Docstrings describe current behavior only — never reference what the code replaces, used to do, or PR/migration history. The docstring must read the same to a new reader who never saw the prior version.
+
+## HTTP Status Codes
+
+- Use `HTTPStatus` enum from the `http` module instead of raw integer status codes.
+- Import as: `from http import HTTPStatus`.
+- Use your framework's standard error response type instead of hand-rolled JSON response bodies when the project already defines one.
+
+```python
+from http import HTTPStatus
+
+# Good: use a typed or framework-standard error response
+raise HttpError(
+    status_code=HTTPStatus.NOT_FOUND,
+    detail="Resource not found",
+)
+
+# Bad: using raw integer status code with JSONResponse
+return JSONResponse(
+    status_code=404,
+    content={"error": "Resource not found"},
+)
+```
+
+## Exception Handling
+
+- Never catch bare `Exception`; always catch specific exception types unless that broad exception is being explicitly tested in a test case.
+- For generated or SDK-backed API clients, catch the library's documented exception type instead of broad exceptions.
+
+```python
+import third_party_client
+
+# Good: catch specific exception
+try:
+    response = await customer_api.get_customer(...)
+except third_party_client.ApiException as exc:
+    logger.warning("Customer API call failed: %s", exc)
+
+# Bad: catch all exceptions
+try:
+    response = await customer_api.get_customer(...)
+except Exception as exc:
+    logger.warning("API call failed: %s", exc)
+```
+
+## Enums
+
+- Prefer string enums for string-valued domains instead of loose string constants.
+
+```python
+from enum import StrEnum
+
+# Good: string enum
+class WidgetType(StrEnum):
+    TOTAL_REVENUE = "total-revenue"
+    CONTRACTORS = "contractors"
+
+# Bad: loose string constants spread across modules
+TOTAL_REVENUE = "total-revenue"
+CONTRACTORS = "contractors"
+```
