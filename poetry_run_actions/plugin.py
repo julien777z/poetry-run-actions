@@ -54,10 +54,6 @@ class RunActionsPlugin(ApplicationPlugin):
             return
 
         name = extract_target_name(raw_args)
-
-        if name is None:
-            return
-
         environment = os.environ.get(ENV_VAR, DEFAULT_ENV)
 
         setup_actions, pre_start_actions = self._resolve_target_entry(
@@ -102,24 +98,20 @@ class RunActionsPlugin(ApplicationPlugin):
         if not isinstance(env_table, dict):
             return [], []
 
-        packages_table = env_table.get(PACKAGES_KEY, {})
-        scripts_table = env_table.get(SCRIPTS_KEY, {})
+        declared_by_kind = {
+            PACKAGES_KEY: get_configured_packages(pyproject_data),
+            SCRIPTS_KEY: get_configured_scripts(pyproject_data),
+        }
 
-        configured_packages = get_configured_packages(pyproject_data)
-        configured_scripts = get_configured_scripts(pyproject_data)
+        matches = [
+            (kind, entry)
+            for kind, declared in declared_by_kind.items()
+            if name in declared
+            and isinstance(kind_table := env_table.get(kind, {}), dict)
+            and (entry := kind_table.get(name)) is not None
+        ]
 
-        pkg_entry = (
-            packages_table.get(name)
-            if isinstance(packages_table, dict) and name in configured_packages
-            else None
-        )
-        script_entry = (
-            scripts_table.get(name)
-            if isinstance(scripts_table, dict) and name in configured_scripts
-            else None
-        )
-
-        if pkg_entry is not None and script_entry is not None:
+        if len(matches) > 1:
             logger.warning(
                 "poetry-run-actions: %r is configured under both %s.%s.%s and %s.%s.%s; "
                 "firing neither.",
@@ -134,13 +126,12 @@ class RunActionsPlugin(ApplicationPlugin):
 
             return [], []
 
-        if pkg_entry is not None:
-            return cls._coerce_entry(pkg_entry, environment, PACKAGES_KEY, name)
+        if not matches:
+            return [], []
 
-        if script_entry is not None:
-            return cls._coerce_entry(script_entry, environment, SCRIPTS_KEY, name)
+        kind, entry = matches[0]
 
-        return [], []
+        return cls._coerce_entry(entry, environment, kind, name)
 
     @classmethod
     def _coerce_entry(
@@ -149,8 +140,6 @@ class RunActionsPlugin(ApplicationPlugin):
         """Coerce an entry value (str | list | full table) into (setup, pre-start) lists."""
 
         match value:
-            case None:
-                return [], []
             case str() | list():
                 return [], coerce_commands(value, environment, kind, name, None, CONFIG_TABLE)
             case dict():
