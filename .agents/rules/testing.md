@@ -44,7 +44,7 @@ alwaysApply: true
 ## Test Fixtures
 
 - Do not create module-level helper factories inside test files for reusable objects. This includes the first invocation — even a one-off "I'll just put it here for now" builder belongs in `conftest.py` from day one.
-- Follow the canonical factory shape: a `@pytest.fixture` named `<noun>_*_factory` (for example `record_factory`, `provider_call_log_factory`, `kyb_status_payload_factory`, `claimed_job_factory`) that returns an inner `_build(**overrides) -> Noun` closure. Use the `*_orm_factory` suffix specifically for SQLAlchemy ORM rows.
+- Follow the canonical factory shape: a `@pytest.fixture` named `<noun>_*_factory` (for example `order_factory`, `customer_factory`, `payment_payload_factory`, `task_factory`) that returns an inner `_build(**overrides) -> Noun` closure. Use the `*_orm_factory` suffix specifically for SQLAlchemy ORM rows.
 - Put shared factories in `conftest.py` and prefer `@pytest.fixture` for setup.
 - Helper functions that appear in multiple test files must be extracted to the nearest shared `conftest.py` or a `utils.py` in the test service folder.
 - When multiple tests in a suite need the same config overrides, expose a reusable fixture helper (for example, `mock_config` returning `_mock_config(**overrides)`) in `conftest.py` instead of repeating `monkeypatch.setattr(...)` in each test.
@@ -59,13 +59,13 @@ alwaysApply: true
 ```python
 # Bad: hardcoded property in a test payload
 payload = {
-    "website": "https://acme.example.com",
+    "website": "https://example.com",
 }
 
 # Good: add website to the shared fixture setup and use fixture data
-assert organization_fixture.website is not None
+assert account_fixture.website is not None
 payload = {
-    "website": organization_fixture.website,
+    "website": account_fixture.website,
 }
 ```
 
@@ -119,17 +119,17 @@ async def test_extracts_tenant_from_token(mock_config):
 
 ```python
 @pytest.mark.parametrize(
-    ("identifier", "expected_state"),
+    ("postal_code", "expected_region"),
     [
-        ("001-03-4567", "NH"),
-        ("545-03-8901", "CA"),
+        ("03301", "NH"),
+        ("90001", "CA"),
     ],
 )
-def test_lookup_state(identifier: str, expected_state: str) -> None:
-    result = lookup_identifier_state(identifier)
+def test_lookup_region(postal_code: str, expected_region: str) -> None:
+    result = lookup_postal_region(postal_code)
 
     assert result is not None
-    assert result.issued_state == expected_state
+    assert result.region == expected_region
 ```
 
 ## Test-Only Models
@@ -153,15 +153,15 @@ class TreeNode(BaseModel):
 - Use `AsyncMock` for async functions.
 - Avoid `MagicMock` for ORM/domain entities; use `*_orm_factory` fixtures that return real instances.
 - `MagicMock` is acceptable for external boundaries (SDK/client response containers, subprocess handles, and network wrappers).
-- For mocked third-party libraries, raise the real library exception types (for example `ClerkErrors`) instead of mock-specific custom exceptions.
+- For mocked third-party libraries, raise the real library exception types (for example `stripe.error.StripeError`) instead of mock-specific custom exceptions.
 - In reusable mock library/fake implementations, prefer real SDK/HTTP models and response objects over `MagicMock` whenever practical.
 
 ## ORM Factory Fixtures
 
-- Use `*_orm_factory` fixtures to create real ORM instances (for example: `user_orm_factory`, `organization_orm_factory`, `contractor_orm_factory`, `user_widget_position_orm_factory`, `records_contractor_factory`).
+- Use `*_orm_factory` fixtures to create real ORM instances (for example: `user_orm_factory`, `account_orm_factory`, `order_orm_factory`, `subscription_orm_factory`).
 - ORM factory fixtures must live in shared `conftest.py` files, not inside individual test modules.
 - Factory fixtures should return real model instances with fixture-backed defaults and allow overrides via keyword arguments.
-- For related entities, build real nested relationships in the factory (for example, attach a real `Users` instance to `Contractors.user`).
+- For related entities, build real nested relationships in the factory (for example, attach a real `Customer` instance to `Order.customer`).
 
 ```python
 # Good: reusable fixture-backed ORM factory in conftest.py

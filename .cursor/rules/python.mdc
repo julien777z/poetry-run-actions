@@ -39,60 +39,60 @@ from typing import TypedDict
 from pydantic import BaseModel
 
 # Bad: implicit, untyped payload shape
-payload = {"organization_id": envelope.organization_id, "status": "queued"}
+payload = {"account_id": envelope.account_id, "status": "queued"}
 
 # Good: TypedDict for mapping payloads
 class JobPayload(TypedDict):
-    organization_id: str
+    account_id: str
     status: str
 
 payload_typed: JobPayload = {
-    "organization_id": envelope.organization_id,
+    "account_id": envelope.account_id,
     "status": "queued",
 }
 
 # Good: BaseModel when validation/serialization is useful
 class JobPayloadModel(BaseModel):
-    organization_id: str
+    account_id: str
     status: str
 
 payload_for_insert = JobPayloadModel(
-    organization_id=envelope.organization_id,
+    account_id=envelope.account_id,
     status="queued",
 ).model_dump()
 
 # Better for repeated DB payloads: TypedDict + builder
 class JobUpsertPayload(TypedDict):
-    organization_id: str
+    account_id: str
     user_id: str
     status: str
 
-def build_job_upsert_payload(*, organization_id: str, user_id: str) -> JobUpsertPayload:
+def build_job_upsert_payload(*, account_id: str, user_id: str) -> JobUpsertPayload:
     return JobUpsertPayload(
-        organization_id=organization_id,
+        account_id=account_id,
         user_id=user_id,
         status="queued",
     )
 
 # Bad: object hides the real field type contract
-class ContractorSyncPayloadBad(TypedDict):
-    contractor_id: object
+class SubscriberSyncPayloadBad(TypedDict):
+    subscriber_id: object
     is_active: object
     tags: object
 
 # Good: use exact types (or precise unions)
-class ContractorSyncPayload(TypedDict):
-    contractor_id: str
+class SubscriberSyncPayload(TypedDict):
+    subscriber_id: str
     is_active: bool
     tags: list[str]
 
-class ContractorSyncBody(BaseModel):
-    contractor_id: str
+class SubscriberSyncBody(BaseModel):
+    subscriber_id: str
     is_active: bool
     tags: list[str]
 
-payload_from_model: ContractorSyncPayload = ContractorSyncBody(
-    contractor_id="ctr_123",
+payload_from_model: SubscriberSyncPayload = SubscriberSyncBody(
+    subscriber_id="sub_123",
     is_active=True,
     tags=["priority"],
 ).model_dump()
@@ -110,7 +110,7 @@ payload_from_model: ContractorSyncPayload = ContractorSyncBody(
 - Keep ALL imports at the top of the file.
 - Never import inside functions, methods, or test cases.
 - Group imports: stdlib, third-party, local (separated by blank lines).
-- Prefer **absolute imports** from the top-level package (for example `from api.routes.users import router`) over **relative imports** with parent segments (for example `from ....routes.users import router`). Absolute imports are stable when modules move, easier to grep, and avoid brittle `..` depth. Same rule applies to other installable packages: always anchor imports on the package name, not on the file’s directory depth.
+- Prefer **absolute imports** from the top-level package (for example `from myapp.routes.users import router`) over **relative imports** with parent segments (for example `from ....routes.users import router`). Absolute imports are stable when modules move, easier to grep, and avoid brittle `..` depth. Same rule applies to other installable packages: always anchor imports on the package name, not on the file’s directory depth.
 - Never use import aliases for project modules; import the canonical symbol/module name and update call sites to that name instead of aliasing.
 - Use `__all__` exports in module `__init__.py` files.
 - Never define variables or call functions in between import statements; all imports must be contiguous at the top of the file.
@@ -124,10 +124,10 @@ from .http_transport import fetch, fetch_with_cache
 __all__ = ["fetch", "fetch_with_cache"]
 
 # Bad: consuming through a shim module
-from project_name.http import fetch
+from myapp.http import fetch
 
 # Good: import from the canonical source directly
-from project_name.http_transport import fetch
+from myapp.http_transport import fetch
 ```
 
 ## Static analysis (Pylint, type checkers)
@@ -136,7 +136,7 @@ from project_name.http_transport import fetch
 
 ```python
 # pylint: disable-next=not-callable
-config = package_namespace.Config(
+config = third_party_package.Config(
     app_name="example",
 )
 ```
@@ -215,24 +215,30 @@ def get_auth_secret(config: Settings | None = None) -> str:
 ```python
 # Bad: speculative fallback for a "maybe async, maybe sync" SDK shape
 try:
-    memberships = await clerk.organization_memberships.list_async(
-        organization_id=clerk_org_id,
-        user_id=[clerk_user_id],
+    memberships = await sdk.memberships.list_async(
+        org_id=org_id,
+        user_id=[user_id],
         limit=1,
     )
 except AttributeError:
-    membership = clerk.organization_memberships.get(
-        organization_id=clerk_org_id,
-        user_id=clerk_user_id,
+    membership = sdk.memberships.get(
+        org_id=org_id,
+        user_id=user_id,
     )
 
 # Good: call the expected method directly
-memberships = await clerk.organization_memberships.list_async(
-    organization_id=clerk_org_id,
-    user_id=[clerk_user_id],
+memberships = await sdk.memberships.list_async(
+    org_id=org_id,
+    user_id=[user_id],
     limit=1,
 )
 ```
+
+## No Placeholder Values in Application Code
+
+- Never insert fabricated placeholder values (for example `user-{id}@blank.com`) into database columns in application code to satisfy NOT NULL or UNIQUE constraints.
+- If a required field is unavailable at a code path, fetch the real value from its authoritative source (for example an external identity provider API) or make the caller supply it.
+- Placeholder backfills for legacy data belong exclusively in database migrations, not in runtime service logic.
 
 ## Complete Implementations (No Backwards-Compatible Branches)
 
@@ -243,19 +249,19 @@ memberships = await clerk.organization_memberships.list_async(
 
 ```python
 # Bad: backward-compatible branch for an unsupported secondary shape
-async def get_clerk_user_id_from_db(session: AsyncSession, user_id: UUID | str) -> str | None:
+async def get_external_id_from_db(session: AsyncSession, user_id: UUID | str) -> str | None:
     resolved_user_id = UUID(user_id) if isinstance(user_id, str) else user_id
-    user = await Users.get_one(session, where=Users.id == resolved_user_id)
+    user = await User.get_one(session, where=User.id == resolved_user_id)
     ...
 
 # Good: single, complete implementation aligned to DB contract
-async def get_clerk_user_id_from_db(session: AsyncSession, user_id: UUID) -> str | None:
-    user = await Users.get_one(session, where=Users.id == user_id)
+async def get_external_id_from_db(session: AsyncSession, user_id: UUID) -> str | None:
+    user = await User.get_one(session, where=User.id == user_id)
     ...
 
 # Good call site: convert once at boundary
-contractor_id = response.json()["data"]["contractor_id"]
-clerk_user_id = await get_clerk_user_id_from_db(api_db_session, UUID(contractor_id))
+raw_user_id = response.json()["data"]["user_id"]
+external_id = await get_external_id_from_db(session, UUID(raw_user_id))
 ```
 
 ## Caching Deterministic Builders
@@ -269,7 +275,7 @@ clerk_user_id = await get_clerk_user_id_from_db(api_db_session, UUID(contractor_
 from functools import cache
 
 @cache
-def build_naics_agent() -> Agent[None, NaicsResolutionResult]:
+def build_classification_agent() -> Agent[None, ClassificationResult]:
     return Agent(...)
 ```
 
@@ -284,13 +290,13 @@ from enum import StrEnum
 
 
 class JobHandlerKey(StrEnum):
-    KYB_RECORDS_SYNC = "kyb_records_sync"
+    EXPORT_REPORT = "export_report"
 
 # Good: explicit durable key
-register_job(job_type=JobType.BUSINESS_ONBOARDING_SUBMIT, handler_name=JobHandlerKey.KYB_RECORDS_SYNC.value)
+register_job(job_type=JobType.REPORT_EXPORT, handler_name=JobHandlerKey.EXPORT_REPORT.value)
 
 # Bad: fragile runtime-derived key
-register_job(job_type=JobType.BUSINESS_ONBOARDING_SUBMIT, handler_name=handler.__name__)
+register_job(job_type=JobType.REPORT_EXPORT, handler_name=handler.__name__)
 ```
 
 ## Entry Point Design
@@ -324,7 +330,7 @@ if __name__ == "__main__":
 ## Test Seams for Refactors
 
 - Keep explicit wrapper/helper functions for external dependencies so tests can patch clear module boundaries.
-- Prefer patching module-level seams (for example `kyb_sync_service.upsert_submission_sync_job`) over patching deep nested internals.
+- Prefer patching module-level seams (for example `payment_service.charge_card`) over patching deep nested internals.
 
 ## Formatting
 
@@ -360,15 +366,15 @@ _create_migration_file(versions_dir, "rev1", None)
 
 ```python
 # Good: combined conditions in one branch
-if not current_user.org_id or current_user.org_id != organization_id:
-    raise PermissionError("User is not in the organization")
+if not current_user.account_id or current_user.account_id != account_id:
+    raise PermissionError("User is not in the account")
 
 # Bad: separate branches with identical bodies
-if not current_user.org_id:
-    raise PermissionError("User is not in the organization")
+if not current_user.account_id:
+    raise PermissionError("User is not in the account")
 
-if current_user.org_id != organization_id:
-    raise PermissionError("User is not in the organization")
+if current_user.account_id != account_id:
+    raise PermissionError("User is not in the account")
 ```
 
 ```python
@@ -384,6 +390,24 @@ if request is None:
 else:
     resolved_name = request["name"]
     resolved_slug = request.get("slug") or ""
+```
+
+## Collection Search
+
+- For find-first patterns, use `next()` with a generator expression instead of a `for` loop with a nested `if` and early `return`/`break`.
+- For filtering, prefer generator expressions or `filter(...)` over `for` loops that conditionally append to a list.
+
+```python
+# Bad: for loop with trivial nested if for find-first
+for item in items:
+    if item.id == target_id:
+        return item.value
+
+# Good: next() with generator expression
+return next(
+    (item.value for item in items if item.id == target_id),
+    None,
+)
 ```
 
 ## Pattern Matching
@@ -405,6 +429,13 @@ else:
 - Keep docstrings to a single line. Do not include Args, Returns, or Raises sections.
 - Class docstrings go directly after the class definition.
 - Docstrings describe current behavior only — never reference what the code replaces, used to do, or PR/migration history. The docstring must read the same to a new reader who never saw the prior version.
+
+## Comments
+
+- Default to writing no comments. Only add one when the WHY is non-obvious: a hidden constraint, a subtle invariant, a workaround for a specific bug, or behavior that would surprise a reader.
+- Comments describe current behavior only — never reference what the code replaces, used to do, what was deleted, or PR/migration history. Phrases like "previously…", "was the…", "legacy…", "replaces the hand-built…", "now uses X instead of Y" do not belong in source. They rot the moment the comparison ages out.
+- A comment should read the same to someone who never saw the prior version of the file. If you find yourself explaining a transition, put that in the PR description, not the code.
+- Don't explain WHAT the code does — well-named identifiers already do that. Don't reference the current task, fix, or callers ("used by X", "added for the Y flow", "handles the case from issue #123") since those belong in the PR description.
 
 ## HTTP Status Codes
 
@@ -438,13 +469,13 @@ import third_party_client
 
 # Good: catch specific exception
 try:
-    response = await customer_api.get_customer(...)
+    response = await client.get_resource(...)
 except third_party_client.ApiException as exc:
-    logger.warning("Customer API call failed: %s", exc)
+    logger.warning("Resource API call failed: %s", exc)
 
 # Bad: catch all exceptions
 try:
-    response = await customer_api.get_customer(...)
+    response = await client.get_resource(...)
 except Exception as exc:
     logger.warning("API call failed: %s", exc)
 ```
@@ -457,11 +488,11 @@ except Exception as exc:
 from enum import StrEnum
 
 # Good: string enum
-class WidgetType(StrEnum):
-    TOTAL_REVENUE = "total-revenue"
-    CONTRACTORS = "contractors"
+class ReportType(StrEnum):
+    DAILY_SUMMARY = "daily-summary"
+    MONTHLY_INVOICE = "monthly-invoice"
 
 # Bad: loose string constants spread across modules
-TOTAL_REVENUE = "total-revenue"
-CONTRACTORS = "contractors"
+DAILY_SUMMARY = "daily-summary"
+MONTHLY_INVOICE = "monthly-invoice"
 ```
