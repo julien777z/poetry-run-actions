@@ -187,11 +187,11 @@ Avoid trivial wrapper functions that add no value. A function that just returns 
 
 ```python
 # Bad: useless wrapper
-def _resolve_config(config: Settings | None) -> Settings:
+def resolve_config(config: Settings | None) -> Settings:
     return config or CONFIG
 
 def get_auth_secret(config: Settings | None = None) -> str:
-    resolved = _resolve_config(config)  # Unnecessary indirection
+    resolved = resolve_config(config)  # Unnecessary indirection
     return resolved.SECRET
 
 # Good: inline the fallback
@@ -343,13 +343,13 @@ if __name__ == "__main__":
 versions_dir = tmp_path / "versions"
 versions_dir.mkdir()
 
-_create_migration_file(versions_dir, "rev1", None)
-_create_migration_file(versions_dir, "rev2", "rev1")
+create_migration_file(versions_dir, "rev1", None)
+create_migration_file(versions_dir, "rev2", "rev1")
 
 # Bad: no separation between setup and main logic
 versions_dir = tmp_path / "versions"
 versions_dir.mkdir()
-_create_migration_file(versions_dir, "rev1", None)
+create_migration_file(versions_dir, "rev1", None)
 ```
 
 - Add a blank line before multi-line assert statements.

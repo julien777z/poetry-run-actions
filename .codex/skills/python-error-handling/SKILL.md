@@ -72,7 +72,7 @@ def process_order(
         )
 
     # Validation passed, proceed with processing
-    return _process_validated_order(order_id, quantity, discount_percent)
+    return process_validated_order(order_id, quantity, discount_percent)
 ```
 
 ### Pattern 2: Convert to Domain Types Early
