@@ -31,7 +31,7 @@ description: Follow modern Python typing, import, formatting, error handling, an
 - Use `cast(...)` only for true edge cases where type information cannot be expressed otherwise, and keep the cast narrowly scoped.
 - For `TypedDict` fields and dict shapes produced from Pydantic models, never use `object` as a placeholder value type; use the exact value type (or a precise union) for each field.
 - Do not "fix" typing by expanding simple transformations into repetitive key-by-key copy blocks (for example, manually assigning each dict key only to satisfy pyright). Fix the source type hints (or add a precise cast/narrowing at the boundary) so the transformation can stay concise and readable.
-- For persistence/update payloads (for example, `upsert(...)`), define a dedicated `TypedDict` and build it via a helper function instead of repeating inline dict literals in multiple call sites.
+- For persistence/update payloads (for example, `upsert(...)`), define a dedicated `TypedDict` and construct it inline at the call site. Do not add free-floating `build_*`/`make_*` helper functions whose only role is constructing a payload from another shape; the same no-free-floating-builders rule that applies to `BaseModel` applies here.
 - When a `TypedDict` types a module-level constant or other shared blob (for example a CVA style config), build the value by **calling** the TypedDict constructor with keyword arguments (`MyTypedDict(field=value, ...)`) instead of assigning an annotated plain dict literal (`name: MyTypedDict = {...}`). Use the same for nested TypedDict rows inside lists (for example `CompoundVariantRule(match={...}, class_name="...")`). This keeps the type as the construction site, not only a static annotation on a dict literal. Requires Python 3.12+.
 
 ```python
@@ -62,12 +62,19 @@ payload_for_insert = JobPayloadModel(
     status="queued",
 ).model_dump()
 
-# Better for repeated DB payloads: TypedDict + builder
+# Good: dedicated TypedDict for DB payloads, constructed inline at the call site
 class JobUpsertPayload(TypedDict):
     account_id: str
     user_id: str
     status: str
 
+payload_for_upsert = JobUpsertPayload(
+    account_id=envelope.account_id,
+    user_id=envelope.user_id,
+    status="queued",
+)
+
+# Bad: free-floating builder whose only role is constructing the payload
 def build_job_upsert_payload(*, account_id: str, user_id: str) -> JobUpsertPayload:
     return JobUpsertPayload(
         account_id=account_id,
@@ -265,6 +272,12 @@ raw_user_id = response.json()["data"]["user_id"]
 external_id = await get_external_id_from_db(session, UUID(raw_user_id))
 ```
 
+## Caching Runtime Data
+
+- Never use plain dictionaries (module-level, class-level, or any other in-process container) as caches for data that must stay correct across requests, workers, or deployments. In-process dict caches silently go stale, diverge between workers, and cannot be invalidated remotely.
+- For cross-request or cross-process caching, use Redis (for example `ResponseCache` from the shared caching layer) or another distributed caching library, and always set an explicit TTL.
+- Pair every cache write path with an explicit invalidation path for mutations that change the cached value.
+- Request-scoped memoization is the only acceptable dict-shaped cache: it must be held in a `ContextVar`, reset at the start of every request, and invalidated on writes within the request.
 ## Caching Deterministic Builders
 
 - Use `@cache` (from `functools`) for expensive, deterministic builders that should be created once per process (for example, AI agents, parsed static configs, immutable lookup tables).
