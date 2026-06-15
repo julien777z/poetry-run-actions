@@ -304,6 +304,26 @@ raw_user_id = response.json()["data"]["user_id"]
 external_id = await get_external_id_from_db(session, UUID(raw_user_id))
 ```
 
+## No Silent Fallbacks (Use Canonical Sources)
+
+- Read required data from its single canonical source — an SDK catalog/list call, a typed config value, a generated client — and use it directly. The implementation must be complete against that source, not hedged with a fallback.
+- Do not wrap a canonical lookup in a `try`/`except` that swallows the failure and continues with a guessed value, a default, or a degraded mode. That hides drift and turns a real outage into silently wrong behavior. Let a genuine failure propagate to the normal error path so it fails loudly and gets fixed at the root.
+- Handling a legitimate, expected *state* of the canonical data is fine (for example, a catalog entry that has no optional variant, so you use the base value). Inventing a substitute when the source is *unavailable or malformed* is not.
+- If you catch yourself writing "if the lookup fails, use X instead", the fix is to make the lookup reliable (or to fail), not to paper over it with a fallback branch.
+
+```python
+# Bad: swallow a catalog failure and silently degrade to the default behavior
+try:
+    catalog = await client.list_models()
+    variant = pick_variant(catalog)
+except SomeError:
+    variant = None  # silently falls back to the wrong/default behavior
+
+# Good: use the canonical source completely; a real failure propagates to the caller's error path
+catalog = await client.list_models()
+variant = pick_variant(catalog)
+```
+
 ## Caching Runtime Data
 
 - Never use plain dictionaries (module-level, class-level, or any other in-process container) as caches for data that must stay correct across requests, workers, or deployments. In-process dict caches silently go stale, diverge between workers, and cannot be invalidated remotely.
