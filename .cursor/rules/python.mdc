@@ -159,6 +159,38 @@ config = third_party_package.Config(
 - Never hard-code constants like HTTP status codes; use `HTTPStatus` from the `http` module instead.
 - Prefer enums for error identifiers/messages instead of a constant per error string.
 
+## Config Maps vs Constants
+
+- A group of related **configuration values** (API hosts, endpoint paths, protocol versions, header tokens, feature markers, default model names, timeouts) is not a set of constants — collect it into a **single typed config map**, not one `Final` per value.
+- Model the map with a `TypedDict` and build it by **calling** the constructor with keyword arguments (`CONFIG: Final[ReviewConfig] = ReviewConfig(...)`), then read values by key (`CONFIG["routine_host"]`). Do not annotate a plain dict literal.
+- Reserve standalone `Final` constants for genuinely single, unrelated constants — a compiled regex, a file path, a sentinel — that do not belong to a config group.
+- This is about grouping; it does not override the **Configuration** section below. Environment-backed values, or values that belong in the repository's central settings layer, still go there — not in a module-level map.
+
+```python
+from typing import Final, TypedDict
+
+# Bad: one config group spread across many individual constants
+ROUTINE_HOST: Final[str] = "https://api.anthropic.com/v1/claude_code/routines"
+ANTHROPIC_VERSION: Final[str] = "2023-06-01"
+ROUTINE_BETA: Final[str] = "experimental-cc-routine-2026-04-01"
+REVIEW_MARKER: Final[str] = "<!-- code-review:cursor -->"
+
+# Good: one typed config map, built by calling the TypedDict constructor
+class ReviewConfig(TypedDict):
+    routine_host: str
+    anthropic_version: str
+    routine_beta: str
+    review_marker: str
+
+
+CONFIG: Final[ReviewConfig] = ReviewConfig(
+    routine_host="https://api.anthropic.com/v1/claude_code/routines",
+    anthropic_version="2023-06-01",
+    routine_beta="experimental-cc-routine-2026-04-01",
+    review_marker="<!-- code-review:cursor -->",
+)
+```
+
 ## Leading underscore (private names)
 
 - Use a leading underscore **only** for nested definitions: a function defined inside another function or method (inner function), and a class defined inside another class (inner class).
