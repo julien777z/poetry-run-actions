@@ -15,9 +15,7 @@ from tests.unit.helpers import make_pyproject
 class TestPythonModuleTargetResolution:
     """Test that `poetry run python -m <module>` resolves to the matching package entry."""
 
-    def test_python_dash_m_module_resolves_to_package(
-        self, make_event, monkeypatch, tmp_path: Path
-    ):
+    def test_python_dash_m_module_resolves_to_package(self, make_event, monkeypatch, tmp_path: Path):
         """Test that `python -m api` fires the actions configured for the `api` package."""
 
         run_mock = MagicMock(return_value=MagicMock(returncode=0))
@@ -62,9 +60,7 @@ class TestPythonModuleTargetResolution:
         assert run_mock.call_count == 1
         assert run_mock.call_args.args[0] == "echo api"
 
-    def test_python_with_flags_before_dash_m_is_resolved(
-        self, make_event, monkeypatch, tmp_path: Path
-    ):
+    def test_python_with_flags_before_dash_m_is_resolved(self, make_event, monkeypatch, tmp_path: Path):
         """Test that interpreter flags between `python` and `-m` do not break resolution."""
 
         run_mock = MagicMock(return_value=MagicMock(returncode=0))
@@ -84,9 +80,7 @@ class TestPythonModuleTargetResolution:
         assert run_mock.call_count == 1
         assert run_mock.call_args.args[0] == "echo api"
 
-    def test_python_running_a_script_path_falls_through(
-        self, make_event, monkeypatch, tmp_path: Path
-    ):
+    def test_python_running_a_script_path_falls_through(self, make_event, monkeypatch, tmp_path: Path):
         """Test that `python script.py` keeps `python` as the lookup name."""
 
         run_mock = MagicMock(return_value=MagicMock(returncode=0))

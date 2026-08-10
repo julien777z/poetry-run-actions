@@ -89,9 +89,7 @@ class TestResolveTargetEntry:
     def test_list_shorthand_under_packages(self):
         """Test that a list entry under packages becomes the pre-start command list in order."""
 
-        pyproject = make_pyproject(
-            "dev", {PACKAGES_KEY: {"api": ["echo a", "echo b", "echo c"]}}
-        )
+        pyproject = make_pyproject("dev", {PACKAGES_KEY: {"api": ["echo a", "echo b", "echo c"]}})
 
         setup, commands = RunActionsPlugin.resolve_target_entry(pyproject, "dev", "api")
 
@@ -141,9 +139,7 @@ class TestResolveTargetEntry:
     def test_full_form_with_only_setup_commands(self):
         """Test that the full form works when only setup-commands is provided."""
 
-        pyproject = make_pyproject(
-            "dev", {PACKAGES_KEY: {"api": {SETUP_KEY: "echo setup"}}}
-        )
+        pyproject = make_pyproject("dev", {PACKAGES_KEY: {"api": {SETUP_KEY: "echo setup"}}})
 
         setup, commands = RunActionsPlugin.resolve_target_entry(pyproject, "dev", "api")
 
@@ -153,9 +149,7 @@ class TestResolveTargetEntry:
     def test_full_form_with_only_pre_start_commands(self):
         """Test that the full form works when only pre-start-commands is provided."""
 
-        pyproject = make_pyproject(
-            "dev", {PACKAGES_KEY: {"api": {COMMANDS_KEY: ["echo go"]}}}
-        )
+        pyproject = make_pyproject("dev", {PACKAGES_KEY: {"api": {COMMANDS_KEY: ["echo go"]}}})
 
         setup, commands = RunActionsPlugin.resolve_target_entry(pyproject, "dev", "api")
 
@@ -184,9 +178,7 @@ class TestResolveTargetEntry:
         assert commands == []
         assert any(expected_warning_fragment in record.getMessage() for record in caplog.records)
 
-    def test_invalid_inner_value_logs_warning_with_sub_key(
-        self, caplog: pytest.LogCaptureFixture
-    ):
+    def test_invalid_inner_value_logs_warning_with_sub_key(self, caplog: pytest.LogCaptureFixture):
         """Test that an invalid inner value warns with the full table.env.kind.name.sub-key path."""
 
         pyproject = make_pyproject("dev", {PACKAGES_KEY: {"api": {SETUP_KEY: 42}}})
@@ -204,9 +196,7 @@ class TestResolveTargetEntry:
     def test_mixed_list_inner_value_logs_warning(self, caplog: pytest.LogCaptureFixture):
         """Test that a list mixing strings and non-strings is rejected and warned about."""
 
-        pyproject = make_pyproject(
-            "dev", {PACKAGES_KEY: {"api": {COMMANDS_KEY: ["echo a", 7]}}}
-        )
+        pyproject = make_pyproject("dev", {PACKAGES_KEY: {"api": {COMMANDS_KEY: ["echo a", 7]}}})
 
         with caplog.at_level("WARNING"):
             setup, commands = RunActionsPlugin.resolve_target_entry(pyproject, "dev", "api")

@@ -50,18 +50,14 @@ class TestOnCommandSkipPaths:
 
         run_mock.assert_not_called()
 
-    def test_unrelated_name_does_not_trigger_configured_actions(
-        self, make_event, monkeypatch
-    ):
+    def test_unrelated_name_does_not_trigger_configured_actions(self, make_event, monkeypatch):
         """Test that running name A does not execute name B's configured actions."""
 
         run_mock = MagicMock()
         monkeypatch.setattr(subprocess, "run", run_mock)
         monkeypatch.delenv(ENV_VAR, raising=False)
 
-        pyproject = make_pyproject(
-            DEFAULT_ENV, {PACKAGES_KEY: {"worker": "echo worker-only"}}
-        )
+        pyproject = make_pyproject(DEFAULT_ENV, {PACKAGES_KEY: {"worker": "echo worker-only"}})
         event = make_event(args=["api"], pyproject_data=pyproject)
 
         RunActionsPlugin().on_command(event, "console.command", MagicMock())

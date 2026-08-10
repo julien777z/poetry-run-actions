@@ -70,8 +70,7 @@ class RunActionsPlugin(ApplicationPlugin):
             *((name, action) for action in pre_start_actions),
         ]:
             event.io.write_line(
-                f"<info>[poetry-run-actions]</info> "
-                f"<comment>{environment}/{label}</comment> -> {action}"
+                f"<info>[poetry-run-actions]</info> " f"<comment>{environment}/{label}</comment> -> {action}"
             )
 
             result = subprocess.run(
@@ -113,8 +112,7 @@ class RunActionsPlugin(ApplicationPlugin):
 
         if len(matches) > 1:
             logger.warning(
-                "poetry-run-actions: %r is configured under both %s.%s.%s and %s.%s.%s; "
-                "firing neither.",
+                "poetry-run-actions: %r is configured under both %s.%s.%s and %s.%s.%s; " "firing neither.",
                 name,
                 CONFIG_TABLE,
                 environment,
@@ -153,8 +151,7 @@ class RunActionsPlugin(ApplicationPlugin):
                 return setup, commands
             case _:
                 logger.warning(
-                    "poetry-run-actions: ignoring %s.%s.%s.%s; "
-                    "expected str, list[str], or table, got %r",
+                    "poetry-run-actions: ignoring %s.%s.%s.%s; " "expected str, list[str], or table, got %r",
                     CONFIG_TABLE,
                     environment,
                     kind,
